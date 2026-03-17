@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do List</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom Cascade-inspired utilities */
+        .cascade-slate { color: #334155; }
+        .cascade-indigo { color: #4f46e5; }
+        .cascade-bg-slate { background-color: #f8fafc; }
+        .cascade-bg-indigo { background-color: #4f46e5; }
+        .cascade-border-slate { border-color: #e2e8f0; }
+        .cascade-hover-indigo:hover { background-color: #4338ca; }
+        
+        /* Smooth transitions */
+        * { transition: all 0.2s ease; }
+        
+        /* Custom animations */
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .task-item {
+            animation: slideIn 0.3s ease;
+        }
+    </style>
+</head>
+<body class="min-h-screen cascade-bg-slate">
+    <div class="container mx-auto px-4 py-8 max-w-2xl">
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold cascade-slate mb-2">To-Do List</h1>
+            <p class="text-gray-600">Stay organized and productive</p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="bg-white rounded-2xl shadow-lg p-6">
+            <!-- Add Task Form -->
+            <section class="mb-8">
+                <div class="flex gap-3">
+                    <input 
+                        type="text" 
+                        id="taskInput" 
+                        placeholder="What needs to be done?"
+                        class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-500 cascade-slate"
+                        maxlength="100"
+                    >
+                    <button 
+                        id="addBtn"
+                        class="px-6 py-3 cascade-bg-indigo text-white rounded-xl font-semibold hover:shadow-lg cascade-hover-indigo focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                    >
+                        Add Task
+                    </button>
+                </div>
+                <div class="mt-2 text-sm text-gray-500">
+                    <span id="charCount">0</span>/100 characters
+                </div>
+            </section>
+
+            <!-- Task List -->
+            <section>
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-semibold cascade-slate">Your Tasks</h2>
+                    <div class="text-sm text-gray-500">
+                        <span id="taskCount">0</span> tasks
+                    </div>
+                </div>
+                
+                <!-- Task List Container -->
+                <div id="taskList" class="space-y-2">
+                    <!-- Tasks will be dynamically added here -->
+                </div>
+                
+                <!-- Empty State -->
+                <div id="emptyState" class="text-center py-12">
+                    <div class="text-6xl mb-4">📝</div>
+                    <p class="text-gray-500 text-lg">No tasks yet</p>
+                    <p class="text-gray-400 text-sm mt-2">Add your first task to get started!</p>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="text-center mt-8 text-gray-500 text-sm">
+            <p>Built with Python Flask & Cascade Styling</p>
+        </footer>
+    </div>
+
+    <script>
+        class TodoApp {
+            constructor() {
+                this.tasks = [];
+                this.init();
+            }
+
+            init() {
+                this.bindEvents();
+                this.loadTasks();
+            }
+
+            bindEvents() {
+                const taskInput = document.getElementById('taskInput');
+                const addBtn = document.getElementById('addBtn');
+
+                addBtn.addEventListener('click', () => this.addTask());
+                taskInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') this.addTask();
+                });
+                
+                taskInput.addEventListener('input', () => {
+                    document.getElementById('charCount').textContent = taskInput.value.length;
+                });
+            }
+
+            async loadTasks() {
+                try {
+                    const response = await fetch('/api/tasks');
+                    this.tasks = await response.json();
+                    this.renderTasks();
+                } catch (error) {
+                    console.error('Error loading tasks:', error);
+                }
+            }
+
+            async addTask() {
+                const input = document.getElementById('taskInput');
+                const text = input.value.trim();
+
+                if (!text) {
+                    input.focus();
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/api/tasks', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ text })
+                    });
+
+                    if (response.ok) {
+                        const newTask = await response.json();
+                        this.tasks.push(newTask);
+                        this.renderTasks();
+                        input.value = '';
+                        document.getElementById('charCount').textContent = '0';
+                        input.focus();
+                    }
+                } catch (error) {
+                    console.error('Error adding task:', error);
+                }
+            }
+
+            async deleteTask(taskId) {
+                try {
+                    const response = await fetch(`/api/tasks/${taskId}`, {
+                        method: 'DELETE'
+                    });
+
+                    if (response.ok) {
+                        this.tasks = this.tasks.filter(task => task.id !== taskId);
+                        this.renderTasks();
+                    }
+                } catch (error) {
+                    console.error('Error deleting task:', error);
+                }
+            }
+
+            renderTasks() {
+                const taskList = document.getElementById('taskList');
+                const emptyState = document.getElementById('emptyState');
+                const taskCount = document.getElementById('taskCount');
+
+                taskCount.textContent = this.tasks.length;
+
+                if (this.tasks.length === 0) {
+                    taskList.style.display = 'none';
+                    emptyState.style.display = 'block';
+                    return;
+                }
+
+                taskList.style.display = 'block';
+                emptyState.style.display = 'none';
+
+                taskList.innerHTML = this.tasks.map(task => `
+                    <div class="task-item flex items-center gap-3 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 group">
+                        <div class="flex-1">
+                            <p class="cascade-slate font-medium">${this.escapeHtml(task.text)}</p>
+                            <p class="text-xs text-gray-500 mt-1">
+                                ${new Date(task.created_at).toLocaleDateString()} at ${new Date(task.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                            </p>
+                        </div>
+                        <button 
+                            onclick="app.deleteTask('${task.id}')"
+                            class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-red-500"
+                            aria-label="Delete task"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                        </button>
+                    </div>
+                `).join('');
+            }
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+        }
+
+        // Initialize the app
+        const app = new TodoApp();
+    </script>
+</body>
+</html>
